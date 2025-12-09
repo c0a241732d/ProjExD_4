@@ -141,14 +141,17 @@ class Beam(pg.sprite.Sprite):
     """
     ビームに関するクラス
     """
-    def __init__(self, bird: Bird):
+    def __init__(self, bird: Bird, angle0: float = 0):
         """
         ビーム画像Surfaceを生成する
         引数 bird：ビームを放つこうかとん
         """
         super().__init__()
+        #こうかとんの向きの角度を設定
+        base_angle = math.degrees(math.atan2(-bird.dire[1], bird.dire[0]))
         self.vx, self.vy = bird.dire
-        angle = math.degrees(math.atan2(-self.vy, self.vx))
+        #弾幕用の角度を加算
+        angle = base_angle + angle0
         self.image = pg.transform.rotozoom(pg.image.load(f"fig/beam.png"), angle, 1.0)
         self.vx = math.cos(math.radians(angle))
         self.vy = -math.sin(math.radians(angle))
@@ -165,6 +168,29 @@ class Beam(pg.sprite.Sprite):
         self.rect.move_ip(self.speed*self.vx, self.speed*self.vy)
         if check_bound(self.rect) != (True, True):
             self.kill()
+
+class NeoBeam:
+    """
+    弾幕（多方向ビーム）を生成するクラス
+    """
+    def __init__(self, bird: Bird, num: int):
+        self.bird = bird
+        self.num = num
+
+    def gen_beams(self) -> list[Beam]:
+        """
+        -50° ～ +50° を指定ビーム数で等分し、Beam を生成して返す
+        """
+        if self.num == 1:
+            angles = [0]
+        else:
+            step = 100 // (self.num - 1)  #-50～+50 を num 個に分割するステップ
+            angles = list(range(-50, 51, step))
+
+        beams = []
+        for a in angles:
+            beams.append(Beam(self.bird, angle0=a))
+        return beams
 
 
 class Explosion(pg.sprite.Sprite):
@@ -316,7 +342,14 @@ def main():
             if event.type == pg.QUIT:
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+
+                if key_lst[pg.K_LSHIFT]:
+                    neo = NeoBeam(bird,num=5) #ビーム数(num)は可変
+                    for n in neo.gen_beams():
+                        beams.add(n)
+                #2:スペースのみで通常ビーム
+                else:
+                    beams.add(Beam(bird))
             # 追加：リターンキーで重力場発動
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                 if score.value > 200:  # スコアが200より大きいか確認
@@ -327,6 +360,7 @@ def main():
                     shilds.add(Shield(bird, 400))
                     score.value -= 50 #50スコア使う
             
+
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
